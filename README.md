@@ -80,9 +80,19 @@ The example uses the `pull_request` trigger and npm manifest path filters; adjus
 
 The workflow checks that the PR still has the built head SHA before publishing and never force-pushes or retries generated output against a newer head. It creates a separate commit and uses a normal Git push; if Git rejects a non-fast-forward push because the branch advanced, the workflow reports the failure and requires a fresh run. The head can still advance between the final GitHub API check and the push, so these checks do not make publication atomic or eliminate every race.
 
-The generated commit message includes `[dependabot skip]`. [GitHub documents](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/manage-your-dependency-security/manage-dependabot-prs#allowing-dependabot-to-rebase-and-force-push-over-extra-commits) that Dependabot normally stops rebasing a PR after extra commits are added, and that this marker allows it to force-push over those commits. This workflow has not been tested against a live Dependabot PR; confirm the rebase/refresh behavior in your repository. A Dependabot refresh can replace the generated commit, so the rebuild workflow should run again for the refreshed PR head.
+**Dependabot updates and PR checks**
+
+The generated commit message includes `[dependabot skip]` to allow Dependabot to rebase and force-push over the generated commit, as described in [GitHub's documentation](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/manage-your-dependency-security/manage-dependabot-prs#allowing-dependabot-to-rebase-and-force-push-over-extra-commits). Rebase scheduling is managed by Dependabot and the caller repository's Dependabot configuration, not by this workflow. A Dependabot refresh can replace the generated commit; the caller must handle `synchronize` events so generated output is rebuilt for the refreshed PR head.
 
 The PAT push is intended to trigger the caller repository's normal PR checks; confirm those checks run under your repository's branch protection and workflow trigger configuration. The caller's actor condition prevents the PAT-generated update from starting another rebuild.
+
+**Regression tests**
+
+Run the dependency-free regression tests with Python 3.10 or later and Git:
+
+```sh
+python3 -B -m unittest discover -s tests -p 'test_dependabot_rebuild_dist.py'
+```
 
 - [`codeql-analysis.yml`](./.github/workflows/codeql-analysis.yml)
 
