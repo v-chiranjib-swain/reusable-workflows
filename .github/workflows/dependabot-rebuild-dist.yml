@@ -1,0 +1,167 @@
+name: Rebuild Dependabot dist
+
+on:
+  workflow_call:
+    inputs:
+      install-command:
+        description: "Command used to install dependencies in the unprivileged build job"
+        required: false
+        type: string
+        default: "npm ci --ignore-scripts"
+      build-command:
+        description: "Command used to rebuild generated files in the unprivileged build job"
+        required: false
+        type: string
+        default: "npm run build"
+      node-version:
+        description: "Node.js version used by the build job"
+        required: false
+        type: string
+        default: "24.x"
+      dist-path:
+        description: "Repository-relative directory containing generated files"
+        required: false
+        type: string
+        default: "dist"
+    secrets:
+      token:
+        description: "PAT with contents write access to the caller repository"
+        required: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      head-ref: ${{ steps.validate.outputs.head-ref }}
+      head-sha: ${{ steps.validate.outputs.head-sha }}
+      pr-number: ${{ steps.validate.outputs.pr-number }}
+      dist-path: ${{ steps.validate.outputs.dist-path }}
+    steps:
+      - name: Checkout trusted implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: v-chiranjib-swain/reusable-workflows
+          ref: a03a3b12b2a46da54adf351efd278765764bda86 # Reviewed helper implementation
+          path: .dependabot-rebuild-implementation
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Isolate trusted implementation
+        run: mv "$GITHUB_WORKSPACE/.dependabot-rebuild-implementation" "$RUNNER_TEMP/dependabot-rebuild-implementation"
+
+      - name: Validate Dependabot pull request
+        id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTOR: ${{ github.actor }}
+          EVENT_PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          DIST_PATH_INPUT: ${{ inputs.dist-path }}
+        run: |
+          python3 -I "$RUNNER_TEMP/dependabot-rebuild-implementation/scripts/validate.py"
+
+  build:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: v-chiranjib-swain/reusable-workflows
+          ref: a03a3b12b2a46da54adf351efd278765764bda86 # Reviewed helper implementation
+          path: .dependabot-rebuild-implementation
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Isolate trusted implementation
+        run: mv "$GITHUB_WORKSPACE/.dependabot-rebuild-implementation" "$RUNNER_TEMP/dependabot-rebuild-implementation"
+
+      - name: Checkout Dependabot commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.head-sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install dependencies
+        env:
+          INSTALL_COMMAND: ${{ inputs.install-command }}
+        run: bash --noprofile --norc -euo pipefail -c "$INSTALL_COMMAND"
+
+      - name: Rebuild generated files
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+        run: bash --noprofile --norc -euo pipefail -c "$BUILD_COMMAND"
+
+      - name: Package generated output
+        env:
+          DIST_PATH: ${{ needs.validate.outputs.dist-path }}
+          OUTPUT_ARCHIVE: ${{ runner.temp }}/generated-dist.zip
+        run: |
+          python3 -I "$RUNNER_TEMP/dependabot-rebuild-implementation/scripts/publish.py" --package
+
+      - name: Upload generated output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: generated-dist
+          path: ${{ runner.temp }}/generated-dist.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs:
+      - validate
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout trusted implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: v-chiranjib-swain/reusable-workflows
+          ref: a03a3b12b2a46da54adf351efd278765764bda86 # Reviewed helper implementation
+          path: .dependabot-rebuild-implementation
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Isolate trusted implementation
+        run: mv "$GITHUB_WORKSPACE/.dependabot-rebuild-implementation" "$RUNNER_TEMP/dependabot-rebuild-implementation"
+
+      - name: Checkout exact Dependabot commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.head-sha }}
+          persist-credentials: false
+
+      - name: Download generated output
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: generated-dist
+          path: ${{ runner.temp }}/generated-artifact
+
+      - name: Apply and publish generated output
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_TOKEN: ${{ secrets.token }}
+          PR_NUMBER: ${{ needs.validate.outputs.pr-number }}
+          EXPECTED_HEAD_SHA: ${{ needs.validate.outputs.head-sha }}
+          HEAD_REF: ${{ needs.validate.outputs.head-ref }}
+          DIST_PATH: ${{ needs.validate.outputs.dist-path }}
+          REPOSITORY: ${{ github.repository }}
+          ARTIFACT_DIRECTORY: ${{ runner.temp }}/generated-artifact
+        run: |
+          python3 -I "$RUNNER_TEMP/dependabot-rebuild-implementation/scripts/publish.py"
