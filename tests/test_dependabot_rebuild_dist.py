@@ -9,7 +9,6 @@ import stat
 import subprocess
 import sys
 import tempfile
-import textwrap
 import unittest
 from unittest import mock
 import urllib.error
@@ -19,13 +18,10 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = (ROOT / ".github/workflows/dependabot-rebuild-dist.yml").read_text()
-SCRIPTS = [
-    textwrap.dedent(script)
-    for script in re.findall(
-        r"python3 -I - <<'PY'\n(.*?)\n          PY", WORKFLOW, re.DOTALL
-    )
-]
-VALIDATE, PACKAGE, PUBLISH = SCRIPTS
+VALIDATE = (ROOT / "scripts/validate.py").read_text()
+PUBLISH_MODULE = (ROOT / "scripts/publish.py").read_text()
+PACKAGE = PUBLISH_MODULE + "\npackage()\n"
+PUBLISH = PUBLISH_MODULE + "\npublish()\n"
 REAL_RUN = subprocess.run
 
 
@@ -139,7 +135,7 @@ class WorkflowTests(unittest.TestCase):
                 contextlib.redirect_stderr(output),
             ):
                 try:
-                    exec(compile(script, "workflow-script", "exec"), {})
+                    exec(compile(script, "workflow-script", "exec"), {"__name__": "workflow_test"})
                 except SystemExit as error:
                     if isinstance(error.code, str):
                         return 1, output.getvalue() + error.code
@@ -500,6 +496,34 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotEqual(status, 0)
         self.assertIn("symbolic link", output)
 
+    def test_packaging_script_entrypoint(self):
+        result = REAL_RUN(
+            [sys.executable, "-I", str(ROOT / "scripts/publish.py"), "--package"],
+            cwd=self.repo,
+            env=os.environ | {
+                "DIST_PATH": self.env["DIST_PATH"],
+                "OUTPUT_ARCHIVE": self.env["OUTPUT_ARCHIVE"],
+            },
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        with zipfile.ZipFile(self.env["OUTPUT_ARCHIVE"]) as archive:
+            self.assertEqual(
+                set(archive.namelist()),
+                {"dist/", "dist/bundle.js", "dist/deleted.js"},
+            )
+
+    def test_publisher_script_rejects_invalid_arguments(self):
+        result = REAL_RUN(
+            [sys.executable, "-I", str(ROOT / "scripts/publish.py"), "--invalid"],
+            cwd=self.repo,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Usage: publish.py [--package]", result.stderr)
+
     def test_file_permissions_are_normalized(self):
         self.write_archive([
             ("dist/world-writable", stat.S_IFREG | 0o666, b"x"),
@@ -527,7 +551,7 @@ class WorkflowTests(unittest.TestCase):
     def test_python_isolation_blocks_pr_module_execution(self):
         (self.repo / "shutil.py").write_text("raise RuntimeError('PR module executed')\n")
         result = REAL_RUN(
-            [sys.executable, "-I", "-c", PUBLISH],
+            [sys.executable, "-I", str(ROOT / "scripts/publish.py")],
             cwd=self.repo,
             env={**os.environ, **self.env, "PUBLISH_TOKEN": ""},
             capture_output=True,
@@ -571,7 +595,21 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("needs:\n      - validate\n      - build", WORKFLOW)
         self.assertNotIn("continue-on-error", WORKFLOW)
         self.assertNotIn("--force", WORKFLOW)
-        self.assertEqual(len(SCRIPTS), 3)
+        self.assertNotIn("<<'PY'", WORKFLOW)
+        self.assertIn('scripts/validate.py"', WORKFLOW)
+        self.assertIn('scripts/publish.py" --package', WORKFLOW)
+
+    def test_helpers_are_pinned_and_isolated_from_caller_checkout(self):
+        self.assertNotIn("implementation-repository", WORKFLOW)
+        self.assertNotIn("implementation-ref", WORKFLOW)
+        self.assertEqual(WORKFLOW.count("repository: v-chiranjib-swain/reusable-workflows"), 3)
+        pins = re.findall(r"ref: ([0-9a-f]{40}) # Reviewed helper implementation", WORKFLOW)
+        self.assertEqual(len(pins), 3)
+        self.assertEqual(len(set(pins)), 1)
+        self.assertEqual(WORKFLOW.count("sparse-checkout: scripts"), 3)
+        self.assertEqual(WORKFLOW.count("persist-credentials: false"), 5)
+        self.assertEqual(WORKFLOW.count('run: mv "$GITHUB_WORKSPACE/.dependabot-rebuild-implementation" "$RUNNER_TEMP/dependabot-rebuild-implementation"'), 3)
+        self.assertNotIn("github.event.pull_request.head.repo", WORKFLOW)
 
     def test_documented_caller_loop_prevention_contract(self):
         readme = (ROOT / "README.md").read_text()
