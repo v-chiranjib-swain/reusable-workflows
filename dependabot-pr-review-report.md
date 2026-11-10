@@ -129,9 +129,9 @@ The race harness used the extracted publisher, a temporary write-enabled `GITHUB
 python3 -B -m unittest discover -s tests -p 'test_dependabot_rebuild_dist.py'
 ```
 
-## 5. Remaining observation
+## 5. External behavior: Dependabot scheduling
 
-**Automatic rebase scheduling remains unverified.** Rebase compatibility passed through the explicit command above. The earlier automatic-rebase observation on [v-chiranjib-swain/setup-node-test#36](https://github.com/v-chiranjib-swain/setup-node-test/pull/36) did not show a refresh before a manual rebase request was posted on 2026-11-10. That request means subsequent activity there cannot establish an unprompted automatic rebase.
+**Rebase compatibility passed; no implementation test remains outstanding for this scenario.** Dependabot's decision and timing to initiate an automatic rebase are outside this workflow's control. Automatic scheduling was not verified, but this is an external observation, not an observed defect or blocker in the rebuild implementation.
 
 ## 6. Other review considerations
 
