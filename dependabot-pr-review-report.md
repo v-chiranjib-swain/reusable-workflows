@@ -65,6 +65,20 @@ These genuine Dependabot PRs target `test/dependabot-rebuild` in the setup-go fo
 - PR 5's TypeScript 7.0.2 conflicts with `@typescript-eslint/eslint-plugin@8.62.0`, which requires TypeScript `>=4.8.4 <6.1.0`. This is a dependency compatibility failure, not a publishing failure.
 - Separate npm audit checks failed on PR 2. Successful rebuilding does not mean all PR checks are green.
 
+### Rebase compatibility: passed
+
+After advancing the test base, the repository owner requested `@dependabot rebase` on [v-chiranjib-swain/setup-go#2](https://github.com/v-chiranjib-swain/setup-go/pull/2). Verified on 2026-11-10:
+
+| Check | Evidence |
+|---|---|
+| Refreshed dependency commit includes the advanced base | New dependency commit `a26598f`; merge base is `7d7a3004ed08af53bbce562af5f72692ed49dc60` |
+| Validation, build, and publication succeed again | [Rebuild run](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42751376726) |
+| Fresh generated commit is created | `309ab876b26176eeecfd91c9569f4c04476d97b7`, following the refreshed dependency commit |
+| Independent check-dist passes on the new head | [Check-dist run](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42751640806) |
+| PAT-generated update does not start another rebuild | [Skipped follow-up run](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42751640980) |
+
+This verifies command-triggered rebase compatibility with the generated commit, not automatic rebase scheduling.
+
 ## 4. Additional test evidence
 
 All runs below are in the disposable `v-chiranjib-swain/setup-node-test` repository.
@@ -115,11 +129,14 @@ The race harness used the extracted publisher, a temporary write-enabled `GITHUB
 python3 -B -m unittest discover -s tests -p 'test_dependabot_rebuild_dist.py'
 ```
 
-## 5. Remaining review items
+## 5. Remaining observation
 
-1. **Upstream helper source:** replace the contributor-fork dependency with an upstream-accessible reviewed helper commit before upstream adoption. Verify pins remain fetchable after squash/rebase.
-2. **CI integration:** the PR includes regression tests but no workflow to run them automatically.
-3. **Automatic rebase:** not yet verified. [v-chiranjib-swain/setup-node-test#36](https://github.com/v-chiranjib-swain/setup-node-test/pull/36) was prepared with auto-rebase enabled and an advanced base; no automatic refresh was observed at the last check on 2026-11-05. Explicit recreation does not prove automatic rebase.
-4. **Known boundaries:** PR eligibility checks and Git push are not atomic; closure after the final check and SHA changes away then back are not excluded. Archive limits apply after download.
+**Automatic rebase scheduling remains unverified.** Rebase compatibility passed through the explicit command above. The earlier automatic-rebase observation on [v-chiranjib-swain/setup-node-test#36](https://github.com/v-chiranjib-swain/setup-node-test/pull/36) did not show a refresh before a manual rebase request was posted on 2026-11-10. That request means subsequent activity there cannot establish an unprompted automatic rebase.
 
-**Recommended review order:** workflow job boundaries and helper pin, validation script, publisher script, setup-go evidence, then regression tests and the remaining items above.
+## 6. Other review considerations
+
+- **Upstream helper source:** before upstream adoption, use an upstream-accessible reviewed helper commit and verify the pin remains fetchable after squash/rebase.
+- **CI integration:** the PR includes regression tests but no automated workflow to run them.
+- **Known boundaries:** PR eligibility checks and Git push are not atomic; closure after the final check and SHA changes away then back are not excluded. Archive limits apply after download.
+
+**Review order:** workflow job boundaries and helper pin, validation script, publisher script, setup-go evidence, regression tests, then the remaining considerations above.
