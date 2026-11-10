@@ -182,6 +182,28 @@ All three scratch branches were verified deleted after the run. The production P
 
 Initial harness run [42025255519](https://github.com/v-chiranjib-swain/setup-node-test/actions/runs/42025255519) stopped before any scratch mutations because a Dependabot secret was unavailable to `workflow_dispatch`. This was a harness authorization issue, corrected before the successful run; not a publisher defect.
 
+## Real-action fork validation: setup-go (2026-11-10 update)
+
+The pinned extracted-helper caller was exercised on genuine Dependabot PRs in `v-chiranjib-swain/setup-go`, targeting `test/dependabot-rebuild`. Configuration PR [v-chiranjib-swain/setup-go#1](https://github.com/v-chiranjib-swain/setup-go/pull/1) is merged; dependency PRs 2-6 were open at this check.
+
+| PR | Dependency update | Rebuild outcome | Independent check-dist |
+|---|---|---|---|
+| [v-chiranjib-swain/setup-go#2](https://github.com/v-chiranjib-swain/setup-go/pull/2) | `@vercel/ncc` 0.44.0 to 0.45.0 | Validation, build, and publication passed; generated commit pushed. [Rebuild run](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42256913559) | [Failed before rebuild](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42256912421), [passed on generated head](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42258435510) |
+| [v-chiranjib-swain/setup-go#3](https://github.com/v-chiranjib-swain/setup-go/pull/3) | `eslint` 10.5.0 to 10.14.0 | All three jobs passed; publisher log confirmed unchanged output, so no generated commit. [Rebuild run](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42256931395) | [Passed](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42256930652) |
+| [v-chiranjib-swain/setup-go#4](https://github.com/v-chiranjib-swain/setup-go/pull/4) | `semver` and `@types/semver` | All three jobs passed; generated commit pushed. [Rebuild run](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42256958292) | [Passed on generated head](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42258470958) |
+| [v-chiranjib-swain/setup-go#5](https://github.com/v-chiranjib-swain/setup-go/pull/5) | `typescript` 6.0.3 to 7.0.2 | Validation passed; installation failed; publication correctly skipped. [Rebuild run](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42256963412) | [Failed](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42256962081) |
+| [v-chiranjib-swain/setup-go#6](https://github.com/v-chiranjib-swain/setup-go/pull/6) | `@jest/globals` 30.4.1 to 30.5.2 | All three jobs passed; publisher log confirmed unchanged output, so no generated commit. [Rebuild run](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42300692499) | [Passed](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42300692209) |
+
+### Verified interpretation
+
+- PR 2's generated commit `402d1f4839beeac1e2ac351de57cbd99d0f2910a` changed only `dist/setup/index.js` and `dist/cache-save/index.js`. Independent check-dist changed from failure to success.
+- PR 4 received generated commit `48bf617e450a53ee6e4dfd8f3b156aec294ced57`.
+- PAT-generated updates correctly skipped another rebuild: [PR 2 follow-up](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42258435985), [PR 4 follow-up](https://github.com/v-chiranjib-swain/setup-go/actions/runs/42258472201).
+- PRs 3 and 6 demonstrate legitimate no-op behavior: a successful publishing job does not necessarily create a commit.
+- PR 5 is a dependency compatibility failure: `@typescript-eslint/eslint-plugin@8.62.0` requires TypeScript `>=4.8.4 <6.1.0`, conflicting with TypeScript 7.0.2. npm rejected installation; publishing did not run. This is not a publishing-token failure.
+- These results verify generated changes, no-op output, and install-failure handling in a real action fork. They do not establish that all unrelated CI checks passed; npm audit failures were observed separately on PR 2.
+- Earlier setup-java Dependabot update runs stalled before the rebuild workflow could start. Those queued runs are not counted as successful implementation tests.
+
 ## Outstanding test: automatic Dependabot rebase
 
 - [PR 36](https://github.com/v-chiranjib-swain/setup-node-test/pull/36) has the successful extracted-helper generated commit.
