@@ -41,6 +41,10 @@ Configure a fine-grained PAT as a **Dependabot secret** named `DEPENDABOT_BUILD_
 
 Call it from a trusted caller workflow, restricted to Dependabot PRs from the same repository. Pin the reusable workflow to a reviewed full commit SHA when using it in production:
 
+The workflow loads `scripts/validate.py` and `scripts/publish.py` from a fixed repository and full commit SHA recorded in the workflow. Callers cannot override the helper source. Helpers are stored outside the caller checkout, and the publishing job never loads helper code from the Dependabot branch.
+
+The helper source is `actions/reusable-workflows`. To update helpers, first commit the scripts, then update the workflow in a subsequent commit to reference that script commit's full SHA. The helper commit must be reachable in that repository before using the workflow. Keep the referenced helper commit available; squash or rebase operations require checking that the pin is still fetchable and, if necessary, creating a new workflow commit with a replacement pin.
+
 ```yaml
 name: Rebuild Dependabot dist
 
