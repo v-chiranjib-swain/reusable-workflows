@@ -44,7 +44,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: actions/reusable-workflows
-          ref: 2e3db73401086c099d1a41655cd70363be8a2386 # Reviewed helper implementation
+          ref: SCRIPT_COMMIT_SHA # Replace with the merged scripts PR commit SHA
           path: .dependabot-rebuild-implementation
           sparse-checkout: scripts
           persist-credentials: false
@@ -76,7 +76,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: actions/reusable-workflows
-          ref: 2e3db73401086c099d1a41655cd70363be8a2386 # Reviewed helper implementation
+          ref: SCRIPT_COMMIT_SHA # Replace with the merged scripts PR commit SHA
           path: .dependabot-rebuild-implementation
           sparse-checkout: scripts
           persist-credentials: false
@@ -133,7 +133,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: actions/reusable-workflows
-          ref: 2e3db73401086c099d1a41655cd70363be8a2386 # Reviewed helper implementation
+          ref: SCRIPT_COMMIT_SHA # Replace with the merged scripts PR commit SHA
           path: .dependabot-rebuild-implementation
           sparse-checkout: scripts
           persist-credentials: false
